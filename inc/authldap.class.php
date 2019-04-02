@@ -2560,7 +2560,15 @@ class AuthLDAP extends CommonDBTM {
    static function connectToServer($host, $port, $login = "", $password = "",
                                    $use_tls = false, $deref_options = 0) {
 
-      $ds = @ldap_connect($host, intval($port));
+      if (strpos($host, '://') !== false) {
+         if (strpos($host, 'ldaps') === 0) {
+            // To allow connect without cert
+            putenv('LDAPTLS_REQCERT=never');
+         }
+         $ds = @ldap_connect($host . ":" . $port);
+      } else {
+         $ds = @ldap_connect($host, intval($port));
+      }
       if ($ds) {
          @ldap_set_option($ds, LDAP_OPT_PROTOCOL_VERSION, 3);
          @ldap_set_option($ds, LDAP_OPT_REFERRALS, 0);
@@ -2569,6 +2577,9 @@ class AuthLDAP extends CommonDBTM {
             if (!@ldap_start_tls($ds)) {
                return false;
             }
+         } else if (PHP_VERSION_ID >= 70100 && strpos($host, 'ldaps') === 0) {
+            // Support after PHP 7.1.0, To allow connect without cert
+            @ldap_set_option($ds, LDAP_OPT_X_TLS_REQUIRE_CERT, 0);
          }
          // Auth bind
          if ($login != '') {
